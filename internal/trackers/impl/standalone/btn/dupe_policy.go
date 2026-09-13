@@ -22,7 +22,6 @@ func duplicatePolicy() *trackers.DupePolicy {
 			trackers.DupeDimensionResolution,
 		},
 		CoexistenceRules: []trackers.DupeRule{
-			btnDifferentValueRule("scene_p2p", trackers.DupeDimensionReleaseOrigin, "scene", "p2p"),
 			btnWEBCodecRule(),
 			btnDifferentValueRule("bluray_dvd", trackers.DupeDimensionSource, "bluray", "dvd"),
 			btnPALNTSC(),
@@ -143,7 +142,6 @@ func btnMixedOriginRule(proposed bool) trackers.DupeRule {
 
 func btnSetRules() []trackers.DupeSetRule {
 	return []trackers.DupeSetRule{
-		btnSeasonPackSetRule("scene_season_pack_capacity", "scene", 1),
 		btnSeasonPackSetRule("p2p_season_pack_capacity", "p2p", 2),
 		btnWEBSetRule("web_hd_capacity", []string{"720p", "1080p"}, 2),
 		btnWEBSetRule("web_sd_uhd_capacity", []string{"sd", "480i", "480p", "576i", "576p", "2160p"}, 1),
@@ -174,6 +172,11 @@ func btnWEBSetRule(id string, resolutions []string, capacity int) trackers.DupeS
 		ID:         "standalone/btn/duplicate/v1/" + id,
 		EvidenceID: btnDupeEvidenceID,
 		TargetPredicates: []trackers.DupeSetPredicate{
+			{
+				Dimension:        trackers.DupeDimensionReleaseOrigin,
+				ExcludedValues:   []string{"scene"},
+				RequiresComplete: true,
+			},
 			btnSetPredicate(trackers.DupeDimensionPack, "true"),
 			btnSetPredicate(trackers.DupeDimensionSource, "web"),
 			btnSetPredicate(trackers.DupeDimensionResolution, resolutions...),
