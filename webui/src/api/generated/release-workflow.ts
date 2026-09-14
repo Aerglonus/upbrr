@@ -916,6 +916,7 @@ export type NamingFacts = Readonly<{
   Title: string;
   TitleProvenance: FactProvenance;
   Type: string;
+  Version: string;
   Year: number;
   YearProvenance: FactProvenance;
 }>;

@@ -134,6 +134,7 @@ type NamingFacts struct {
 	Year                     int
 	Month                    int
 	Day                      int
+	Version                  string
 	Source                   string
 	Resolution               string
 	Codecs                   []string

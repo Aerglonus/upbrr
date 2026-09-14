@@ -423,6 +423,7 @@ func releaseInfo(release api.PreparedRelease) api.ReleaseInfo {
 		Year:       naming.Year,
 		Month:      naming.Month,
 		Day:        naming.Day,
+		Version:    naming.Version,
 		Source:     release.Media.Source,
 		Resolution: naming.Resolution,
 		Codec:      append([]string(nil), naming.Codecs...),

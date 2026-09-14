@@ -3616,6 +3616,9 @@
           "Type": {
             "type": "string"
           },
+          "Version": {
+            "type": "string"
+          },
           "Year": {
             "type": "integer"
           },
@@ -3664,6 +3667,7 @@
           "Title",
           "TitleProvenance",
           "Type",
+          "Version",
           "Year",
           "YearProvenance"
         ]

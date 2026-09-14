@@ -201,6 +201,7 @@ func mapCollectedFacts(meta preparationstate.State) CollectedFacts {
 			Year:                     resolved.Year,
 			Month:                    meta.Release.Month,
 			Day:                      meta.Release.Day,
+			Version:                  meta.Release.Version,
 			Source:                   resolved.Source,
 			Resolution:               resolved.Resolution,
 			Codecs:                   append([]string(nil), meta.Release.Codec...),

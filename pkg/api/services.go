@@ -2262,6 +2262,7 @@ type ReleaseInfo struct {
 	Year       int
 	Month      int
 	Day        int
+	Version    string
 	Source     string
 	Resolution string
 	Codec      []string

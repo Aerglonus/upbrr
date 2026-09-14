@@ -117,7 +117,11 @@ Each `api.ReleaseNameComponent` has a unique semantic `Role`. The complete suppo
 | Dubbed marker | `api.NameRoleDubbed` |
 | Dual-audio marker | `api.NameRoleDualAudio` |
 | Language marker | `api.NameRoleLanguageMarker` |
+| Series locale / disambiguation | `api.NameRoleLocale` |
+| Disc distributor | `api.NameRoleDistributor` |
+| Subtitle-language marker | `api.NameRoleSubtitleMarker` |
 | Release group | `api.NameRoleGroup` |
+| Original group retained alongside a custom group | `api.NameRoleOriginalGroup` |
 
 These roles are defined in `pkg/api/naming_document.go`; not every release layout contains every
 role. Editing targets the whole component, so audio subfields, for example, are not separately
@@ -137,14 +141,30 @@ spacing and attachment after edits; `Separator: "."` requests dotted output.
 | `Omit(role)` | Hide the component | `NamePresence` |
 | `Include(role)` | Show the component, restoring an available value if needed | `NamePresence` |
 | `Set(role, value)` | Change its display value without changing presence | `NameValue` |
+| `SetJoin(role, join)` | Change the separator before a component, preserving attachment anchors | `NameOrder` |
 | `MoveBefore(role, anchor)` | Move a present component before a present anchor | `NameOrder` |
 | `MoveAfter(role, anchor)` | Move a present component after a present anchor | `NameOrder` |
 | `InsertBefore(role, value, anchor)` | Add or update a component at an explicit anchor | `NamePresence`, `NameValue`, and `NameOrder` |
+| `InsertAfter(role, value, anchor)` | Add or update a component after an explicit anchor | `NamePresence`, `NameValue`, and `NameOrder` |
 
 Use `PresentRoles()` for a detached snapshot of the editor's current present roles in render
 order. Select anchors after edits have run, since manual protection can prevent an optional
 insertion or inclusion. Preserve related components, such as audio and its dubbed/dual-audio
 markers, in their generated order; move automatic components around manually protected ones.
+
+`Component(role)` returns a detached snapshot of the current component, including its value,
+presence, and manual provenance. Use it to normalize a selected component's value, such as an
+audio label, without searching other components. If normalization produces an empty value,
+omit the component rather than leaving a present component empty.
+
+Use `StructuredNamePolicy.ExactName` only to select an existing authoritative whole name, such
+as a questionnaire answer or a tracker-required source filename. A nonempty result is opaque
+and bypasses defaults; an explicit requested name takes precedence. Mandatory opaque-name
+rules still apply. This callback is not an escape hatch for parsing generated names.
+If an exact selection must affect only upload naming, set `SearchGeneratedName: true`.
+An explicit nonempty `Search` result still wins; otherwise duplicate search renders the current
+generated document independently of the exact selection. Missing generated components fail
+with a reprepare instruction rather than silently searching for the opaque upload name.
 
 #### Preserve manual choices unless the tracker explicitly requires otherwise
 
@@ -193,6 +213,17 @@ Use finalized facts from the supplied subject for replacement values. Direct pro
 are allowed, but use provider evidence bound to the prepared source and identity; do not fetch
 metadata in a naming callback or fall back to raw parser output. Setting a value does not include
 an omitted component: call `Include` as well, and declare presence authority if mandatory.
+
+Keep technical substitutions scoped to their role: audio codec/channel rules must not run on
+titles or groups. Omit an automatic component when normalization leaves it empty. If a tracker
+requires canonical clean-filename substitutions, apply `api.CleanReleaseNameFilename` to the
+selected component value before the tracker's presentation formatting.
+
+For fact-built names, use finalized `Release.Other`, `Release.Language`, and `Release.Audio`
+markers, or `Release.Version` for a parsed release version. Missing marker evidence must be
+resolved during source preparation, not recovered by searching a rendered name. The source
+parser retains only final typed technical markers; candidates classified as title text or a
+release group are not marker evidence. Treat ambiguous or unavailable markers as absent.
 
 #### Handle opaque names explicitly
 

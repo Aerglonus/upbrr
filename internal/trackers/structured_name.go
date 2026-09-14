@@ -52,6 +52,15 @@ type StructuredNamePolicy struct {
 	Opaque    OpaqueNameMode
 	// Separator is empty for spaces, or "." for dotted tracker names.
 	Separator string
+	// ExactName selects an existing authoritative name, such as a questionnaire
+	// answer or an anime source filename. A nonempty result is opaque: defaults
+	// cannot edit it. Requested names take precedence; mandatory opaque rules
+	// still apply. This selector must not parse or rewrite generated components.
+	ExactName func(api.UploadSubject, config.TrackerConfig) string
+	// SearchGeneratedName keeps an ExactName selection upload-only when Search
+	// returns empty. Duplicate search then uses the current generated document
+	// and defaults, not the selected opaque name. A missing document is an error.
+	SearchGeneratedName bool
 	// Search optionally supplies an independent search name from prepared facts
 	// adjusted for naming presentation. Requested names preserve the existing
 	// unadjusted search-fact behavior and do not replace the search text.
@@ -104,6 +113,14 @@ func (e *NameEditor) PresentRoles() []api.ReleaseNameRole {
 		}
 	}
 	return roles
+}
+
+// Component returns a detached snapshot of the selected component, including
+// its current value and presentation state. Mutating it cannot edit the name.
+func (e *NameEditor) Component(role api.ReleaseNameRole) (api.ReleaseNameComponent, bool) {
+	component, exists := e.document.Component(role)
+	component.AttachTo = slices.Clone(component.AttachTo)
+	return component, exists
 }
 
 func (e *NameEditor) index(role api.ReleaseNameRole, aspect NameAspect) (int, error) {
@@ -207,9 +224,33 @@ func (e *NameEditor) Set(role api.ReleaseNameRole, value string) error {
 	return nil
 }
 
+// SetJoin changes the separator before a component under order authority.
+// It preserves manual layout by default and leaves attachment anchors unchanged.
+func (e *NameEditor) SetJoin(role api.ReleaseNameRole, join string) error {
+	i, err := e.index(role, NameOrder)
+	if err != nil || i < 0 {
+		return err
+	}
+	if e.document.Components[i].Join != join {
+		e.changed(role)
+	}
+	e.document.Components[i].Join = join
+	return nil
+}
+
 // InsertBefore adds a role at an explicit anchor, claiming presence, value and order.
 // Optional rules leave manually controlled components unchanged.
 func (e *NameEditor) InsertBefore(role api.ReleaseNameRole, value string, anchor api.ReleaseNameRole) error {
+	return e.insertRelative(role, value, anchor, false)
+}
+
+// InsertAfter adds a role after a present anchor, with the same presence, value,
+// order authority and manual-component protection as InsertBefore.
+func (e *NameEditor) InsertAfter(role api.ReleaseNameRole, value string, anchor api.ReleaseNameRole) error {
+	return e.insertRelative(role, value, anchor, true)
+}
+
+func (e *NameEditor) insertRelative(role api.ReleaseNameRole, value string, anchor api.ReleaseNameRole, after bool) error {
 	if !role.Valid() {
 		return &NameRuleError{
 			Rule:   e.rule,
@@ -265,7 +306,7 @@ func (e *NameEditor) InsertBefore(role api.ReleaseNameRole, value string, anchor
 	if err := e.Include(role); err != nil {
 		return err
 	}
-	return e.MoveBefore(role, anchor)
+	return e.moveRelative(role, anchor, after)
 }
 
 // MoveBefore moves one selected component relative to a selected anchor.
@@ -345,19 +386,24 @@ func resolveStructuredNames(input ReleaseNameInput, binding ReleaseNamePolicyBin
 	subject := input.Subject
 	searchSubject := applyReleaseNamePresentation(subject, input.RequestedName)
 	policyFingerprint, err := api.CanonicalWorkflowFingerprint(struct {
-		ID           string
-		Version      string
-		Authority    []NameAuthority
-		Opaque       OpaqueNameMode
-		Separator    string
-		YearProvider api.IdentityProvider
-	}{binding.ID, api.ReleaseNameDocumentVersionV1, policy.Authority, policy.Opaque, policy.Separator, binding.MovieYearProvider})
+		ID                  string
+		Version             string
+		Authority           []NameAuthority
+		Opaque              OpaqueNameMode
+		Separator           string
+		YearProvider        api.IdentityProvider
+		SearchGeneratedName bool
+	}{binding.ID, api.ReleaseNameDocumentVersionV1, policy.Authority, policy.Opaque, policy.Separator, binding.MovieYearProvider, policy.SearchGeneratedName})
 	if err != nil {
 		return ResolvedReleaseNames{}, fmt.Errorf("structured name policy fingerprint: %w", err)
 	}
 	decisions := []api.TrackerPolicyDecision{{Code: "release_name_structure", Decision: string(policyFingerprint)}}
 	document := subject.GeneratedName
-	opaque := input.RequestedName != nil || document == nil
+	exactName := ""
+	if policy.ExactName != nil {
+		exactName = strings.TrimSpace(policy.ExactName(subject, input.TrackerConfig))
+	}
+	opaque := input.RequestedName != nil || document == nil || exactName != ""
 	if document != nil {
 		if err := document.Validate(); err != nil {
 			return ResolvedReleaseNames{}, fmt.Errorf("generated name: %w", err)
@@ -371,12 +417,39 @@ func resolveStructuredNames(input ReleaseNameInput, binding ReleaseNamePolicyBin
 			if subject.Scene && subject.SceneName != "" {
 				name = subject.SceneName
 			}
+			if exactName != "" {
+				name = exactName
+			}
 			if input.RequestedName != nil {
 				name = *input.RequestedName
 			}
 			resolved := ResolvedReleaseNames{Upload: name, Decisions: decisions}
 			if policy.Search != nil {
 				resolved.Duplicate = policy.Search(searchSubject, input.TrackerConfig)
+			}
+			if exactName != "" && policy.SearchGeneratedName && strings.TrimSpace(resolved.Duplicate) == "" {
+				if document == nil {
+					return ResolvedReleaseNames{}, &NameRuleError{
+						Rule:   binding.ID,
+						Reason: "generated search-name components are unavailable; reprepare the release",
+					}
+				}
+				searchInput := input
+				searchInput.RequestedName = nil
+				searchInput.Subject.ReleaseName = document.Render().Name
+				searchInput.Subject.Scene = false
+				searchInput.Subject.SceneName = ""
+				searchPolicy := *policy
+				searchPolicy.ExactName = nil
+				searchPolicy.Search = nil
+				searchPolicy.SearchGeneratedName = false
+				searchBinding := binding
+				searchBinding.Structured = &searchPolicy
+				generated, err := resolveStructuredNames(searchInput, searchBinding)
+				if err != nil {
+					return ResolvedReleaseNames{}, err
+				}
+				resolved.Duplicate = generated.Upload
 			}
 			return resolved, nil
 		}

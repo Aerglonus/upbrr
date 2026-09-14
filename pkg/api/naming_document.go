@@ -46,7 +46,11 @@ const (
 	NameRoleDubbed         ReleaseNameRole = "dubbed"
 	NameRoleDualAudio      ReleaseNameRole = "dual_audio"
 	NameRoleLanguageMarker ReleaseNameRole = "language_marker"
+	NameRoleLocale         ReleaseNameRole = "locale"
+	NameRoleDistributor    ReleaseNameRole = "distributor"
+	NameRoleSubtitleMarker ReleaseNameRole = "subtitle_marker"
 	NameRoleGroup          ReleaseNameRole = "group"
+	NameRoleOriginalGroup  ReleaseNameRole = "original_group"
 )
 
 // ReleaseNameComponent preserves one generated component's semantic identity,
@@ -148,7 +152,7 @@ func (d *ReleaseNameDocument) Render() ReleaseNameVariant {
 	return ReleaseNameVariant{
 		NameNoTag: renderReleaseNameComponents(d.Components, true),
 		Name:      renderReleaseNameComponents(d.Components, false),
-		CleanName: cleanReleaseNameFilename(renderReleaseNameComponents(d.Components, false)),
+		CleanName: CleanReleaseNameFilename(renderReleaseNameComponents(d.Components, false)),
 	}
 }
 
@@ -172,7 +176,9 @@ func renderReleaseNameComponents(components []ReleaseNameComponent, omitGroup bo
 	return rendered.String()
 }
 
-func cleanReleaseNameFilename(name string) string {
+// CleanReleaseNameFilename applies canonical filename character substitutions to
+// a release name or an individual component, without interpreting naming roles.
+func CleanReleaseNameFilename(name string) string {
 	for _, invalid := range "<>:\"/\\|?*" {
 		name = strings.ReplaceAll(name, string(invalid), "-")
 	}
@@ -187,7 +193,7 @@ func (role ReleaseNameRole) Valid() bool {
 		NameRoleEdition, NameRoleHybrid, NameRoleRepack, NameRoleResolution,
 		NameRoleRegion, NameRoleUHD, NameRoleSource, NameRoleDVDSystem, NameRoleDVDSize, NameRoleService,
 		NameRoleVideoFormat, NameRoleHDR, NameRoleVideoCodec, NameRoleVideoEncode, NameRoleAudio,
-		NameRoleDubbed, NameRoleDualAudio, NameRoleLanguageMarker, NameRoleGroup:
+		NameRoleDubbed, NameRoleDualAudio, NameRoleLanguageMarker, NameRoleLocale, NameRoleDistributor, NameRoleSubtitleMarker, NameRoleGroup, NameRoleOriginalGroup:
 		return true
 	default:
 		return false
