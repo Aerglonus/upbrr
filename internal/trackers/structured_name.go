@@ -93,6 +93,19 @@ type NameEditor struct {
 	decisions []api.TrackerPolicyDecision
 }
 
+// PresentRoles returns a detached snapshot of currently present roles in render order.
+// It reflects completed editor operations, including optional edits skipped for
+// manual components. Changing the returned slice does not change the document.
+func (e *NameEditor) PresentRoles() []api.ReleaseNameRole {
+	roles := make([]api.ReleaseNameRole, 0, len(e.document.Components))
+	for _, component := range e.document.Components {
+		if component.Present {
+			roles = append(roles, component.Role)
+		}
+	}
+	return roles
+}
+
 func (e *NameEditor) index(role api.ReleaseNameRole, aspect NameAspect) (int, error) {
 	if !role.Valid() {
 		return -1, &NameRuleError{
@@ -257,6 +270,16 @@ func (e *NameEditor) InsertBefore(role api.ReleaseNameRole, value string, anchor
 
 // MoveBefore moves one selected component relative to a selected anchor.
 func (e *NameEditor) MoveBefore(role, anchor api.ReleaseNameRole) error {
+	return e.moveRelative(role, anchor, false)
+}
+
+// MoveAfter moves one selected component after a present anchor. Like MoveBefore,
+// optional edits preserve manual targets and mandatory edits require order authority.
+func (e *NameEditor) MoveAfter(role, anchor api.ReleaseNameRole) error {
+	return e.moveRelative(role, anchor, true)
+}
+
+func (e *NameEditor) moveRelative(role, anchor api.ReleaseNameRole, after bool) error {
 	if !anchor.Valid() {
 		return &NameRuleError{
 			Rule:   e.rule,
@@ -286,6 +309,9 @@ func (e *NameEditor) MoveBefore(role, anchor api.ReleaseNameRole) error {
 	e.document.Components = slices.Delete(e.document.Components, i, i+1)
 	if i < j {
 		j--
+	}
+	if after {
+		j++
 	}
 	e.document.Components = slices.Insert(e.document.Components, j, c)
 	if i != j {

@@ -6,12 +6,99 @@ package trackers
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/autobrr/upbrr/internal/config"
 	"github.com/autobrr/upbrr/pkg/api"
 )
+
+func TestNameEditorPresentRolesReflectsEditsWithoutExposingDocument(t *testing.T) {
+	subject := structuredSubject()
+	document := subject.GeneratedName.Clone()
+	for index := range document.Components {
+		if document.Components[index].Role == api.NameRoleEdition {
+			document.Components[index].Manual = true
+			document.Components[index].Present = false
+		}
+	}
+	editor := &NameEditor{document: document}
+	if err := editor.Include(api.NameRoleEdition); err != nil {
+		t.Fatal(err)
+	}
+	if err := editor.Omit(api.NameRoleAlternateTitle); err != nil {
+		t.Fatal(err)
+	}
+	if err := editor.InsertBefore(api.NameRoleLanguageMarker, "FRENCH", api.NameRoleResolution); err != nil {
+		t.Fatal(err)
+	}
+	roles := editor.PresentRoles()
+	if slices.Contains(roles, api.NameRoleEdition) || slices.Contains(roles, api.NameRoleAlternateTitle) {
+		t.Fatalf("absent or protected roles appeared: %v", roles)
+	}
+	index := slices.Index(roles, api.NameRoleLanguageMarker)
+	if index < 0 || index+1 >= len(roles) || roles[index+1] != api.NameRoleResolution {
+		t.Fatalf("inserted role order = %v", roles)
+	}
+	roles[0] = api.NameRoleGroup
+	if editor.PresentRoles()[0] != api.NameRoleTitle {
+		t.Fatal("returned roles alias the editor document")
+	}
+}
+
+func TestNameEditorMoveAfterPreservesAuthority(t *testing.T) {
+	for _, mandatory := range []bool{false, true} {
+		document := &api.ReleaseNameDocument{Version: api.ReleaseNameDocumentVersionV1, Components: []api.ReleaseNameComponent{
+			{
+				Role:    api.NameRoleTitle,
+				Value:   "Example",
+				Present: true,
+			},
+			{
+				Role:    api.NameRoleYear,
+				Value:   "2001",
+				Present: true,
+				Manual:  true,
+			},
+			{
+				Role:    api.NameRoleEdition,
+				Value:   "Uncut",
+				Present: true,
+			},
+		}}
+		editor := &NameEditor{document: document, mandatory: mandatory}
+		if err := editor.MoveAfter(api.NameRoleYear, api.NameRoleEdition); mandatory {
+			if err == nil {
+				t.Fatal("mandatory move accepted undeclared order authority")
+			}
+			editor.authority = []NameAuthority{{Role: api.NameRoleYear, Aspect: NameOrder}}
+			if err := editor.MoveAfter(api.NameRoleYear, api.NameRoleEdition); err != nil {
+				t.Fatal(err)
+			}
+			if editor.PresentRoles()[2] != api.NameRoleYear || len(editor.decisions) != 1 {
+				t.Fatal("mandatory move did not move manual year and report decision")
+			}
+		} else if err != nil || editor.PresentRoles()[1] != api.NameRoleYear {
+			t.Fatalf("optional move changed manual year: %v", err)
+		}
+	}
+	editor := &NameEditor{document: structuredSubject().GeneratedName}
+	if err := editor.MoveAfter(api.NameRoleTitle, api.NameRoleGroup); err != nil {
+		t.Fatal(err)
+	}
+	roles := editor.PresentRoles()
+	if roles[len(roles)-1] != api.NameRoleTitle {
+		t.Fatal("move to final position failed")
+	}
+	if err := editor.MoveAfter(api.NameRoleTitle, api.NameRoleYear); err != nil {
+		t.Fatal(err)
+	}
+	roles = editor.PresentRoles()
+	if roles[slices.Index(roles, api.NameRoleYear)+1] != api.NameRoleTitle {
+		t.Fatal("move from later position failed")
+	}
+}
 
 func TestStructuredOpaqueFailureExplainsCause(t *testing.T) {
 	for _, cause := range []string{"requested", "missing", "scene"} {

@@ -138,7 +138,13 @@ spacing and attachment after edits; `Separator: "."` requests dotted output.
 | `Include(role)` | Show the component, restoring an available value if needed | `NamePresence` |
 | `Set(role, value)` | Change its display value without changing presence | `NameValue` |
 | `MoveBefore(role, anchor)` | Move a present component before a present anchor | `NameOrder` |
+| `MoveAfter(role, anchor)` | Move a present component after a present anchor | `NameOrder` |
 | `InsertBefore(role, value, anchor)` | Add or update a component at an explicit anchor | `NamePresence`, `NameValue`, and `NameOrder` |
+
+Use `PresentRoles()` for a detached snapshot of the editor's current present roles in render
+order. Select anchors after edits have run, since manual protection can prevent an optional
+insertion or inclusion. Preserve related components, such as audio and its dubbed/dual-audio
+markers, in their generated order; move automatic components around manually protected ones.
 
 #### Preserve manual choices unless the tracker explicitly requires otherwise
 
