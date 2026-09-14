@@ -183,6 +183,7 @@ func mapCollectedFacts(meta preparationstate.State) CollectedFacts {
 			NameWithoutTag:           meta.ReleaseNameNoTag,
 			CleanName:                meta.ReleaseNameClean,
 			NamePresentation:         meta.ReleaseNamePresentation,
+			GeneratedName:            meta.GeneratedName.Clone(),
 			GeneratedReleaseNames:    meta.GeneratedReleaseNames,
 			Tag:                      meta.Tag,
 			Type:                     resolved.Type,

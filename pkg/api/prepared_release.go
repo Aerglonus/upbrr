@@ -113,6 +113,8 @@ type NamingFacts struct {
 	NameWithoutTag   string
 	CleanName        string
 	NamePresentation ReleaseNamePresentation
+	// GeneratedName preserves the canonical semantic layout for automatic naming.
+	GeneratedName *ReleaseNameDocument
 	// GeneratedReleaseNames contains safe canonical structural alternatives.
 	// Empty variants mean ReleaseName must remain exact.
 	GeneratedReleaseNames    GeneratedReleaseNameVariants

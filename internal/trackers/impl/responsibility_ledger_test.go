@@ -35,6 +35,9 @@ type trackerResponsibilityRow struct {
 }
 
 func unit3DResponsibility(name string, policy string) trackerResponsibilityRow {
+	if policy == "canonical" {
+		return unit3DResponsibilityVersion(name, policy, "", "v2")
+	}
 	return unit3DResponsibilityVersion(name, policy, "", "v1")
 }
 
@@ -365,7 +368,7 @@ var trackerResponsibilityLedger = []trackerResponsibilityRow{
 		descriptionOwner:  "standalone/is/description.go",
 		mediaOwner:        "standalone/is/media.go",
 		descriptionGroup:  "is",
-		releaseNamePolicy: "standalone/is/v1",
+		releaseNamePolicy: "standalone/is/v2",
 		projectorVersion:  "standalone-v2",
 		principalName:     "name",
 	},
