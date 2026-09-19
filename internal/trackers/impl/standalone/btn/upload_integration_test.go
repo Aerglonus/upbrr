@@ -71,12 +71,18 @@ func (r *httpHandlerErrorRecorder) Check() {
 // captureBTNLogger records selected log messages from upload paths under test.
 type captureBTNLogger struct {
 	mu       sync.Mutex
+	debugs   []string
 	infos    []string
 	warnings []string
 }
 
 func (l *captureBTNLogger) Tracef(string, ...any) {}
-func (l *captureBTNLogger) Debugf(string, ...any) {}
+
+func (l *captureBTNLogger) Debugf(format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.debugs = append(l.debugs, fmt.Sprintf(format, args...))
+}
 
 func (l *captureBTNLogger) Infof(format string, args ...any) {
 	l.mu.Lock()
@@ -98,6 +104,18 @@ func (l *captureBTNLogger) containsInfo(value string) bool {
 	defer l.mu.Unlock()
 	for _, info := range l.infos {
 		if strings.Contains(info, value) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsDebug reports whether any captured debug message contains value.
+func (l *captureBTNLogger) containsDebug(value string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for _, debug := range l.debugs {
+		if strings.Contains(debug, value) {
 			return true
 		}
 	}
@@ -2832,7 +2850,11 @@ func TestBTNUploadFollowsIntermediateDetailPage(t *testing.T) {
 			_, _ = w.Write(btnRegisteredTorrentFixture())
 		case r.URL.Path == "/torrents.php" && r.URL.Query().Get("id") == "123":
 			detailCalls.Add(1)
-			_, _ = w.Write([]byte(`<a href="/torrents.php?id=123&amp;torrentid=456">Uploaded torrent</a>`))
+			if r.URL.Query().Get("torrentid") == "" {
+				http.Redirect(w, r, "/torrents.php?id=123&torrentid=456", http.StatusFound)
+				return
+			}
+			_, _ = io.WriteString(w, "uploaded torrent")
 		case r.URL.Path == "/rpc":
 			apiCalls.Add(1)
 			http.NotFound(w, r)
@@ -2863,8 +2885,8 @@ func TestBTNUploadFollowsIntermediateDetailPage(t *testing.T) {
 	if downloadCalls.Load() != 1 {
 		t.Fatalf("expected one resolved torrent download call, got %d", downloadCalls.Load())
 	}
-	if detailCalls.Load() != 1 {
-		t.Fatalf("expected one detail page call, got %d", detailCalls.Load())
+	if detailCalls.Load() != 2 {
+		t.Fatalf("expected detail redirect and final page calls, got %d", detailCalls.Load())
 	}
 	if apiCalls.Load() != 0 {
 		t.Fatalf("expected no API calls, got %d", apiCalls.Load())
@@ -2919,7 +2941,7 @@ func TestBTNUploadIntermediateFailureFallsBackToAPI(t *testing.T) {
 			switch rpc.Method {
 			case "getTorrents":
 				apiSearchCalls.Add(1)
-				_, _ = w.Write([]byte(`{"result":{"torrents":{"779":{"GroupID":"123","ReleaseName":"Example.Show.S01E01.1080p.WEB-DL.x265-GRP"}}}}`))
+				_, _ = w.Write([]byte(`{"result":{"torrents":{"779":{"GroupID":"123","ReleaseName":"Example.Show.S01E01.1080p.WEB-DL.H.265-GRP"}}}}`))
 			case "getTorrentById":
 				apiDownloadCalls.Add(1)
 				_, _ = w.Write([]byte(`{"result":{"DownloadURL":"http://` + r.Host + `/mock-download"}}`))
