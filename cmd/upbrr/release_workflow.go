@@ -837,6 +837,11 @@ func printCLIWorkflowProjections(
 	printed := len(blocked) > 0
 	for index, projection := range projections.Projections {
 		readiness := cliWorkflowProjectionReadiness(projection, dupes)
+		for _, decision := range projection.PolicyDecisions {
+			if strings.HasPrefix(decision.Code, "release_name_override") && decision.Message != "" {
+				fmt.Fprintf(output, "  %s naming: %s\n", projection.DisplayName, decision.Message)
+			}
+		}
 		if !includePolicyDetails && (readiness == api.ReadinessStatusBlocked || readiness == api.ReadinessStatusIneligible) {
 			continue
 		}

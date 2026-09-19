@@ -34,6 +34,9 @@ func (m *Module) Continue(
 	if err := request.Validate(); err != nil {
 		return CommandResult{}, fmt.Errorf("release workflow continue: %w", err)
 	}
+	if request.Authority == nil && hasConfirmedNameProjectionInstruction(request.Intent.ProjectionInstructions) {
+		return CommandResult{}, fmt.Errorf("%w: confirmed tracker name authority is server-owned", ErrInvalidTransition)
+	}
 	trackerAnswers, err := normalizeTrackerInputAnswers(request.Intent.TrackerInputAnswers)
 	if err != nil {
 		return CommandResult{}, err
@@ -69,6 +72,9 @@ func (m *Module) Continue(
 	state, err := m.repository.Load(ctx, ownerID, authority.WorkflowID)
 	if err != nil {
 		return CommandResult{}, fmt.Errorf("release workflow continue load tracker decision policy: %w", err)
+	}
+	if err := validateConfirmedNameProjectionInstructions(&state, request.Intent.ProjectionInstructions); err != nil {
+		return CommandResult{}, err
 	}
 	if err := consumeAcceptedCorrectionPatch(&request, current, state); err != nil {
 		return CommandResult{}, err
@@ -1034,6 +1040,9 @@ func effectiveProjectionInstructions(
 ) map[api.TrackerID]api.TrackerProjectionInstructions {
 	effective := make(map[api.TrackerID]api.TrackerProjectionInstructions, len(instructions))
 	for trackerID, instruction := range instructions {
+		// Confirmation authority is validated separately and retained by the server;
+		// omitting it from client intent must not trigger another projection.
+		instruction.ConfirmedNameFingerprint = ""
 		if projectionInstructionIsEmpty(instruction) {
 			continue
 		}
@@ -1055,6 +1064,15 @@ func projectionInstructionIsEmpty(instruction api.TrackerProjectionInstructions)
 		instruction.TrackerSite.TIK.Opera == nil &&
 		instruction.TrackerSite.TIK.Asian == nil &&
 		instruction.TrackerSite.TIK.DiscType == nil
+}
+
+func hasConfirmedNameProjectionInstruction(instructions map[api.TrackerID]api.TrackerProjectionInstructions) bool {
+	for _, instruction := range instructions {
+		if instruction.ConfirmedNameFingerprint != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func continuationInteractionMode(intent api.WorkflowIntent) api.InteractionMode {
