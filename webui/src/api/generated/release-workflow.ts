@@ -1078,9 +1078,11 @@ export type MediaPlanSavedImage = Readonly<{
 
 export type MediaTrackFacts = Readonly<{
   AudioLabel: string;
+  BitDepth?: number;
   BitrateBitsPerSecond: number;
   ChannelLayout: string;
   Channels: number;
+  ChannelsKnown?: boolean;
   Codec: string;
   Commentary: boolean;
   Default: boolean;

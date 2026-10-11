@@ -4109,6 +4109,9 @@
           "AudioLabel": {
             "type": "string"
           },
+          "BitDepth": {
+            "type": "integer"
+          },
           "BitrateBitsPerSecond": {
             "type": "integer"
           },
@@ -4117,6 +4120,9 @@
           },
           "Channels": {
             "type": "integer"
+          },
+          "ChannelsKnown": {
+            "type": "boolean"
           },
           "Codec": {
             "type": "string"
