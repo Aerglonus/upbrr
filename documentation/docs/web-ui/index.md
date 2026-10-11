@@ -153,6 +153,18 @@ See [Logging](./logging.md) for persistence, filtering, rotation, and buffer beh
 
 ## Host browser
 
+On **Input**, choose **Browse file** or **Browse folder**. **Roots** shows every allowed browse root, even when only one is configured. **Search all browse roots** finds matching names in the roots and their nested folders, including the roots themselves. Each result shows its exact path so you can distinguish identically named files or folders.
+
+Inside a folder, **Filter this directory** searches only the entries already listed there. Both scopes ignore case, treat common separators such as dots, underscores, hyphens, and brackets as spaces, and match query words in any order. For example, `Beacon Voyage` matches `Beacon.Voyage` and `Beacon_Voyage`. A restricted ordered-character match also finds close abbreviations; it does not correct arbitrary typos.
+
+Choose **Open** to enter a folder or **Select** to apply that exact path to Input. File browsing continues to show only recognized video files alongside folders. **Clear search** restores the root listing or removes the current directory filter; opening another folder also clears the search.
+
+Root searches return at most 200 matches and inspect at most 100,000 entries. They check a two-second search budget between filesystem calls; a slow or unavailable filesystem can keep a call blocked longer. If the results are marked incomplete, open a root and browse directly. A narrower query can help with the match limit, but does not reduce how many filenames must be inspected. Unreadable directories can also leave results incomplete.
+
+Searches can use two workers when every browse root is on a recognized local filesystem. Within each worker, separate roots are visited before their subdirectories, so a deep library does not have to finish before another root gets searched. A single large directory can still use up the search budget. If roots overlap, each root is traversed in order to preserve its access boundary. If any root is on network storage or a filesystem cannot be identified, the search uses one worker. Filesystem identities do not guarantee separate physical disks. When a search reaches a limit, repeated searches may return different subsets of matching paths.
+
+Typing another query, navigating, or closing the browser cancels the previous request, and late replies cannot replace newer results. Each browser request has a 15-second timeout that includes network time and any authentication refresh. A timeout or busy message offers **Retry**; requests are not automatically repeated after network failures. The server allows at most two host-browser operations at once and keeps an operation's slot until its filesystem work actually returns, even after cancellation.
+
 The host browser lists only configured roots unless unrestricted browsing was explicitly enabled. If a valid folder is missing:
 
 1. verify the upbrr process or container can read it;

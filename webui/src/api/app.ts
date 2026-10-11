@@ -3,6 +3,7 @@
 
 import type {
   ApplicationInfo,
+  BrowseDirectoryRequest,
   BrowseDirectoryResponse,
   HistoryEntry,
   HistoryOverview,
@@ -125,8 +126,9 @@ const selectTextFile = (accept: string) =>
 
 /** Host filesystem browsing exposed through the authenticated WebUI route. */
 export const hostBrowser = {
-  list: (path: string, mode: "file" | "folder") =>
-    requestApp<BrowseDirectoryResponse>("BrowseDirectory", { path, mode }),
+  /** Lists or searches authorized roots; cancellation includes response reads, auth refresh and retry. */
+  list: (request: BrowseDirectoryRequest, signal?: AbortSignal) =>
+    requestApp<BrowseDirectoryResponse>("BrowseDirectory", request, { signal }),
 };
 
 /** Application build and runtime capability information. */
