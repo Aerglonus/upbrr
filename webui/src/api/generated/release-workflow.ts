@@ -920,6 +920,7 @@ export type MediaArtifactSet = Readonly<{
   failures?: readonly WorkflowFailure[];
   hostAttempts?: readonly HostedImageAttempt[];
   id: MediaArtifactSetID;
+  imageHostUploadSkipped?: boolean;
   imageRequirementsPrepared: boolean;
   projectionSet: TrackerReleaseProjectionSetRef;
   release: ReleaseSnapshotRef;
@@ -3005,6 +3006,7 @@ export type WorkflowIntent = Readonly<{
   noSeed?: boolean;
   preparation?: PrepareInput | null;
   projectionInstructions?: Readonly<Record<string, TrackerProjectionInstructions>>;
+  skipImageHostUpload?: boolean;
   skipRemoteDuplicates?: boolean;
   staffTokenConfirmations?: Readonly<Record<string, DupeAssessmentID>>;
   trackerIds?: readonly TrackerID[];

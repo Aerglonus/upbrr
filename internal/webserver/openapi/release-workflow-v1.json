@@ -3492,6 +3492,9 @@
           "id": {
             "$ref": "#/components/schemas/MediaArtifactSetID"
           },
+          "imageHostUploadSkipped": {
+            "type": "boolean"
+          },
           "imageRequirementsPrepared": {
             "type": "boolean"
           },
@@ -12258,6 +12261,9 @@
             "additionalProperties": {
               "$ref": "#/components/schemas/TrackerProjectionInstructions"
             }
+          },
+          "skipImageHostUpload": {
+            "type": "boolean"
           },
           "skipRemoteDuplicates": {
             "type": "boolean"

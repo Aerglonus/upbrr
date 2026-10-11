@@ -13,12 +13,18 @@ import (
 
 var sourceHDRBlockPattern = regexp.MustCompile(`(?is)\[spoiler=source_hdr\].*?\[/spoiler\]`)
 
+// exactHDRDescriptionBlock renders HDR plots from the tracker's selected host.
+// Explicit skip omits unavailable plots and returns an empty block when none are
+// reusable; normal hosting requires a matching HDR-purpose variant for every plot.
 func exactHDRDescriptionBlock(tracker string, exact *api.ExactMediaAssets) (string, error) {
 	if exact == nil || len(exact.HDRPlots) == 0 {
 		return "", nil
 	}
 	selectedHost := strings.TrimSpace(exact.HDRUploadHosts[strings.ToUpper(strings.TrimSpace(tracker))])
 	if selectedHost == "" {
+		if exact.ImageHostUploadSkipped {
+			return "", nil
+		}
 		return "", fmt.Errorf("HDR image host is unavailable for %s", tracker)
 	}
 	parts := make([]string, 0, len(exact.HDRPlots)*2)
@@ -29,10 +35,16 @@ func exactHDRDescriptionBlock(tracker string, exact *api.ExactMediaAssets) (stri
 			imageURL = strings.TrimSpace(upload.ImgURL)
 		}
 		if !ok || imageURL == "" || upload.Purpose != api.ScreenshotPurposeHDRAnalysis {
+			if exact.ImageHostUploadSkipped {
+				continue
+			}
 			return "", fmt.Errorf("hosted HDR image is unavailable for %s", tracker)
 		}
 		label := strings.ReplaceAll(strings.ReplaceAll(plot.Label, "[", "&#91;"), "]", "&#93;")
 		parts = append(parts, "[b]"+label+"[/b]", "[img]"+imageURL+"[/img]")
+	}
+	if len(parts) == 0 {
+		return "", nil
 	}
 	return "[spoiler=source_hdr]\n" + strings.Join(parts, "\n") + "\n[/spoiler]", nil
 }

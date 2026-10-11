@@ -360,6 +360,8 @@ func (m *Module) adoptCompositeInput(
 	return current, true, err
 }
 
+// normalizeCompositeUploadRequest resolves upload choices into retained continuation
+// intent and release facts. An absent image-host skip choice defaults to hosting.
 func normalizeCompositeUploadRequest(
 	request api.CreateReleaseWorkflowUploadRequest,
 ) (*compositeUploadSession, api.ReleaseFactInstructions, error) {
@@ -441,6 +443,7 @@ func normalizeCompositeUploadRequest(
 		DuplicateDecisions:     decisions,
 		Media:                  &media,
 		MediaSelection:         selection,
+		SkipImageHostUpload:    optionalBool(request.ImageHosting.SkipUpload),
 		Descriptions:           &descriptions,
 		NoSeed:                 optionalBool(request.Client.NoSeed),
 	}

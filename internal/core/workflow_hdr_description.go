@@ -77,6 +77,9 @@ func resolveWorkflowDescriptionMedia(
 	return exact, nil
 }
 
+// uploadHDRDescriptionImages fills exact HDR uploads and per-tracker host choices
+// for generated descriptions. Explicit skip permits missing hosts and reuses
+// compatible cached links without uploading; final description overrides are excluded.
 func (b workflowDescriptionBuilder) uploadHDRDescriptionImages(ctx context.Context, subject api.UploadSubject, trackerNames []string) error {
 	trackerNames = hdrDescriptionTrackers(subject, trackerNames)
 	if len(trackerNames) == 0 {
@@ -86,6 +89,9 @@ func (b workflowDescriptionBuilder) uploadHDRDescriptionImages(ctx context.Conte
 		return nil
 	}
 	if b.media == nil {
+		if subject.ExactMedia.ImageHostUploadSkipped {
+			return nil
+		}
 		return errors.New("HDR image hosting is unavailable")
 	}
 	images := make([]api.ScreenshotImage, len(subject.ExactMedia.HDRPlots))
@@ -97,6 +103,9 @@ func (b workflowDescriptionBuilder) uploadHDRDescriptionImages(ctx context.Conte
 		return err
 	}
 	if len(targets) == 0 {
+		if subject.ExactMedia.ImageHostUploadSkipped {
+			return nil
+		}
 		return errors.New("no image host is available for HDR analysis")
 	}
 	result, err := b.media.uploadImagesToTargetsWithFallback(ctx, subject, "", nil, targets, images, nil, nil)
@@ -114,7 +123,7 @@ func (b workflowDescriptionBuilder) uploadHDRDescriptionImages(ctx context.Conte
 		}
 	}
 	for _, tracker := range trackerNames {
-		if hosts[strings.ToUpper(strings.TrimSpace(tracker))] == "" {
+		if hosts[strings.ToUpper(strings.TrimSpace(tracker))] == "" && !subject.ExactMedia.ImageHostUploadSkipped {
 			return fmt.Errorf("HDR analysis image host is unavailable for %s", tracker)
 		}
 	}

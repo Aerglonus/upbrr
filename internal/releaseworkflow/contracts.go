@@ -1136,14 +1136,19 @@ func (c AttachMediaArtifactsCommand) commandFingerprint() (api.WorkflowFingerpri
 }
 
 // UploadMediaImagesCommand hosts selected local artifacts for exact media lineage.
+// SkipUpload records image preparation without calling the hosting service.
 type UploadMediaImagesCommand struct {
 	WorkflowID       api.WorkflowID
 	ExpectedRevision api.WorkflowRevision
 	Media            api.MediaArtifactSetRef
-	ArtifactIDs      []api.PublicResourceID
-	Host             string
-	Retry            bool
-	IdempotencyKey   string
+	// ArtifactIDs defaults to selected local screenshots and DVD menus. With an
+	// empty Host, explicit IDs replace local selection without changing hosted selection.
+	ArtifactIDs []api.PublicResourceID
+	// Host selects one host; an empty value prepares all required image hosts.
+	Host           string
+	Retry          bool
+	SkipUpload     bool
+	IdempotencyKey string
 }
 
 func (UploadMediaImagesCommand) commandName() string {
@@ -1154,13 +1159,24 @@ func (UploadMediaImagesCommand) operationKind() api.OperationKind {
 	return api.OperationKindImageHosting
 }
 func (c UploadMediaImagesCommand) commandFingerprint() (api.WorkflowFingerprint, error) {
-	return canonicalCommandFingerprint(struct {
+	// SkipUpload=false must keep the pre-skip-mode fingerprint so retained
+	// operations and receipt replays stay compatible across upgrades.
+	payload := struct {
 		ExpectedRevision api.WorkflowRevision
 		Media            api.MediaArtifactSetRef
 		ArtifactIDs      []api.PublicResourceID
 		Host             string
 		Retry            bool
-	}{c.ExpectedRevision, c.Media, c.ArtifactIDs, c.Host, c.Retry})
+		SkipUpload       bool `json:",omitempty"`
+	}{
+		ExpectedRevision: c.ExpectedRevision,
+		Media:            c.Media,
+		ArtifactIDs:      c.ArtifactIDs,
+		Host:             c.Host,
+		Retry:            c.Retry,
+		SkipUpload:       c.SkipUpload,
+	}
+	return canonicalCommandFingerprint(payload)
 }
 
 // RemoveHostedImagesCommand removes hosted outcomes by opaque artifact ID.
