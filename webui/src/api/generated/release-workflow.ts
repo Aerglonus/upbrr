@@ -518,6 +518,7 @@ export type EpisodeFacts = Readonly<{
   DateMatched: boolean;
   Episode: number;
   EpisodeLabel: string;
+  MultipleEpisodes: boolean;
   Overview: string;
   Pack: boolean;
   Season: number;
@@ -895,6 +896,7 @@ export type IMDBEpisode = Readonly<{
   ReleaseDate: IMDBReleaseDate;
   ReleaseYear: number;
   Season: number;
+  SeasonKnown: boolean;
   Title: string;
 }>;
 
@@ -2420,6 +2422,7 @@ export type TVDBMetadata = Readonly<{
   EpisodeOverview: string;
   EpisodeOverviewEnglish: string;
   EpisodeSeason: number;
+  EpisodeSeasonKnown: boolean;
   Episodes: readonly TVDBEpisodeMetadata[];
   FirstAired: string;
   Genres: string;

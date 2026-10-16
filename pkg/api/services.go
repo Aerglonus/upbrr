@@ -443,6 +443,7 @@ type UploadSubject struct {
 	TrackerQuestionnaireAnswers map[string]map[string]string
 	SeasonInt                   int
 	EpisodeInt                  int
+	MultipleEpisodes            bool
 	SeasonStr                   string
 	EpisodeStr                  string
 	TVDBAiredDate               string
@@ -739,6 +740,7 @@ type TrackerValidationSubject struct {
 	SubtitleLanguages          []string
 	SeasonInt                  int
 	EpisodeInt                 int
+	MultipleEpisodes           bool
 	SeasonStr                  string
 	EpisodeStr                 string
 	TVPack                     bool
@@ -859,6 +861,7 @@ func NewTrackerValidationSubject(subject UploadSubject, tracker string) TrackerV
 		SubtitleLanguages:           slices.Clone(subject.SubtitleLanguages),
 		SeasonInt:                   subject.SeasonInt,
 		EpisodeInt:                  subject.EpisodeInt,
+		MultipleEpisodes:            subject.MultipleEpisodes,
 		SeasonStr:                   subject.SeasonStr,
 		EpisodeStr:                  subject.EpisodeStr,
 		TVPack:                      subject.TVPack,
@@ -2268,6 +2271,8 @@ type IMDBEpisode struct {
 	ReleaseYear int
 	ReleaseDate IMDBReleaseDate
 	Season      int
+	// SeasonKnown retains provider presence; false cannot prove explicit season zero.
+	SeasonKnown bool
 	EpisodeText string
 }
 
@@ -2355,12 +2360,14 @@ type TVDBMetadata struct {
 	PosterThumbnailLookupAttempted bool
 	Aliases                        []string
 	EpisodeSeason                  int
-	EpisodeNumber                  int
-	EpisodeName                    string
-	EpisodeNameEnglish             string
-	EpisodeOverview                string
-	EpisodeOverviewEnglish         string
-	EpisodeAired                   string
+	// EpisodeSeasonKnown retains provider presence for selected text; false cannot prove season zero.
+	EpisodeSeasonKnown     bool
+	EpisodeNumber          int
+	EpisodeName            string
+	EpisodeNameEnglish     string
+	EpisodeOverview        string
+	EpisodeOverviewEnglish string
+	EpisodeAired           string
 	// EpisodeImage is the selected episode image URL when the API returned one.
 	EpisodeImage string
 	// Episodes contains fetched TVDB episode entries, usually the season needed
