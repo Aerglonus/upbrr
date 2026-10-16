@@ -113,8 +113,8 @@ func TestProfileReleaseNamePolicyOmitsOnlyGeneratedEpisodeTitles(t *testing.T) {
 	t.Parallel()
 
 	binding := Profile().ReleaseNamePolicy
-	if binding.ID != "standalone/hdb/v6" {
-		t.Fatalf("HDB release-name policy = %q, want standalone/hdb/v6", binding.ID)
+	if binding.ID != "standalone/hdb/v7" {
+		t.Fatalf("HDB release-name policy = %q, want standalone/hdb/v7", binding.ID)
 	}
 	elementPolicy := binding.Elements.Normalized()
 	if elementPolicy.Version != api.ReleaseNameElementPolicyVersionV1 ||
@@ -316,6 +316,7 @@ func testDefinitionUploadSuccess(t *testing.T, season int, pack bool) {
 			},
 			Type:        "WEBDL",
 			VideoCodec:  "HEVC",
+			Repack:      "REPACK",
 			SeasonInt:   season,
 			SeasonStr:   seasonLabel,
 			EpisodeInt:  2,
@@ -368,10 +369,10 @@ func testDefinitionUploadSuccess(t *testing.T, season int, pack bool) {
 	if !uploadSeen {
 		t.Fatal("expected upload endpoint to be called")
 	}
-	if uploadedName != "Example Show "+episodeToken+" 2160p WEB-DL HEVC" {
+	if uploadedName != "Example Show "+episodeToken+" REPACK 2160p WEB-DL HEVC" {
 		t.Fatalf("uploaded name = %q, want structured generated name", uploadedName)
 	}
-	if uploadedTorrentName != "Example.Show."+episodeToken+".2160p.WEB-DL.HEVC.torrent" {
+	if uploadedTorrentName != "Example.Show."+episodeToken+".REPACK.2160p.WEB-DL.HEVC.torrent" {
 		t.Fatalf("uploaded torrent name = %q, want dotted release name", uploadedTorrentName)
 	}
 	if !downloadSeen {
