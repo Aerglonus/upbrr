@@ -324,3 +324,7 @@ Other:
       Explicit comma-separated unsuccessful decoded modes to measure again
   -hdr-scene-sync, --hdr-scene-sync
       Measure decoded scene synchronization against Dolby Vision markers
+  -ui, --ui string
+      Presentation: plain (default), auto or tui (uploads, audio and local auth forms; static commands keep ordinary output)
+  -ui-keep-open, --ui-keep-open
+      Keep the TUI dashboard open after completion until closed (ignored in plain mode)
