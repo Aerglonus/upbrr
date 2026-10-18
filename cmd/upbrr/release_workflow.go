@@ -1096,7 +1096,7 @@ func collectCLIWorkflowQuestionnaires(
 			}
 		}
 		for _, field := range projection.Questionnaire {
-			if !field.Required || field.Value != "" {
+			if !field.NeedsReview && (!field.Required || strings.TrimSpace(field.Value) != "") {
 				continue
 			}
 
@@ -1144,7 +1144,7 @@ func collectCLIWorkflowQuestionnaires(
 			if err != nil {
 				return false, err
 			}
-			if strings.TrimSpace(answer) == "" {
+			if strings.TrimSpace(answer) == "" && field.Required {
 				return false, fmt.Errorf("upbrr: tracker input %s for %s is required", field.Key, projection.TrackerID)
 			}
 			if field.Kind == "select" && len(field.Options) == 2 && slices.Contains(field.Options, "yes") && slices.Contains(field.Options, "no") {
@@ -1159,6 +1159,9 @@ func collectCLIWorkflowQuestionnaires(
 				selected := make([]string, 0)
 				for item := range strings.SplitSeq(answer, ",") {
 					item = strings.TrimSpace(item)
+					if item == "" && !field.Required {
+						continue
+					}
 					if index, err := strconv.Atoi(item); err == nil && index > 0 && index <= len(field.Options) {
 						item = field.Options[index-1]
 					}

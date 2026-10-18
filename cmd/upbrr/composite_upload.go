@@ -587,7 +587,7 @@ func (s *cliWorkflowSession) collectCompositeTrackerFeedback(
 		s.intent.trackerConfig,
 		s.intent.trackerSite,
 	)
-	_, err := collectCLIWorkflowQuestionnaires(
+	collected, err := collectCLIWorkflowQuestionnaires(
 		reader,
 		s.streams.out,
 		s.intent.interaction,
@@ -596,6 +596,9 @@ func (s *cliWorkflowSession) collectCompositeTrackerFeedback(
 	)
 	if err != nil {
 		return feedback, false, err
+	}
+	if action.Kind == api.RequiredActionAnswerQuestionnaire && !collected {
+		return feedback, false, fmt.Errorf("upbrr: questionnaire for %s requires correction but has no reviewable fields", action.TrackerID)
 	}
 	instruction := instructions[action.TrackerID]
 	if action.Kind == api.RequiredActionProvideTrackerInput && action.AllowsFreeText && len(action.Options) > 0 {
