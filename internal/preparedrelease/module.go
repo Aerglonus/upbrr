@@ -37,7 +37,7 @@ type Store interface {
 	LoadReleaseCorrections(context.Context, string) (api.ReleaseCorrectionsSnapshot, error)
 	UpdateReleaseCorrections(context.Context, string, api.ReleaseCorrectionUpdate) (api.ReleaseCorrectionsSnapshot, error)
 	CompareAndSwapReleaseCorrections(context.Context, string, uint64, api.StoredReleaseCorrectionsV1) (api.ReleaseCorrectionsSnapshot, error)
-	CommitPreparedReleaseWithCorrections(context.Context, api.PreparedRelease, uint64, api.StoredReleaseCorrectionsV1,
+	CommitPreparedReleaseWithCorrections(context.Context, api.PreparedRelease, *api.PreparedGeneration, uint64, api.StoredReleaseCorrectionsV1,
 		func(uint64) (api.PreparationCompatibility, error)) (uint64, error)
 }
 
@@ -421,14 +421,39 @@ func (m *Module) PrepareResolved(ctx context.Context, resolved api.ResolvedPrepa
 		commitFinish(err)
 		return api.PrepareResult{}, err
 	}
-	committedRevision, err := m.store.CommitPreparedReleaseWithCorrections(ctx, release, resolved.Corrections.Revision, finalCorrections,
+	var equivalentPrevious *api.ReleaseRef
+	var expectedPreviousGeneration *api.PreparedGeneration
+	if hasCurrent && reuseAllowed && !input.Force && !input.ExternalFreshness.RequiresRefresh() &&
+		input.ExternalFreshness != api.ExternalFreshnessLoad && !forceClientRefresh &&
+		!input.Controls.CaptureHDRMetadata && !input.Controls.ConfirmBDMVRescan && verifiedSource.Version != "" {
+		// Persistence omits private source samples and provider availability.
+		// Compare the complete published predecessor only while its exact stored
+		// generation, source and compatibility remain current.
+		m.mu.RLock()
+		prior, published := m.envelopes[canonicalSourceKey(input.SourcePath)]
+		m.mu.RUnlock()
+		previous := prior.result.Release
+		if published && prior.completeFacts && previous.Generation == current.Generation && previous.Source.SourcePath == current.Source.SourcePath &&
+			previous.Compatibility == current.Compatibility && previous.SourceIdentity.Version != "" &&
+			equivalentPreparedFacts(previous, release) {
+			expectedPreviousGeneration = &current.Generation
+			equivalentPrevious = &api.ReleaseRef{SourcePath: current.Source.SourcePath, Generation: current.Generation}
+		}
+	}
+	committedRevision, err := m.store.CommitPreparedReleaseWithCorrections(
+		ctx,
+		release,
+		expectedPreviousGeneration,
+		resolved.Corrections.Revision,
+		finalCorrections,
 		func(revision uint64) (api.PreparationCompatibility, error) {
 			committedCompatibility, err := preparationCompatibility(input, sourceFingerprint, revision)
 			if err == nil {
 				release.Compatibility = committedCompatibility
 			}
 			return committedCompatibility, err
-		})
+		},
+	)
 	if err != nil {
 		commitFinish(err)
 		return api.PrepareResult{}, fmt.Errorf("prepared release: commit generation: %w", err)
@@ -437,11 +462,13 @@ func (m *Module) PrepareResolved(ctx context.Context, resolved api.ResolvedPrepa
 	diagnostics := append([]api.PreparationDiagnostic(nil), collected.Diagnostics...)
 	diagnostics = append(diagnostics, identityResult.Diagnostics...)
 	owned := envelope{
+		completeFacts: true,
 		result: api.PrepareResult{
-			Release:               release,
-			Diagnostics:           diagnostics,
-			EffectiveInstructions: input.Instructions,
-			Corrections:           api.ReleaseCorrectionsSnapshot{Corrections: finalCorrections, Revision: committedRevision},
+			EquivalentPreviousRelease: equivalentPrevious,
+			Release:                   release,
+			Diagnostics:               diagnostics,
+			EffectiveInstructions:     input.Instructions,
+			Corrections:               api.ReleaseCorrectionsSnapshot{Corrections: finalCorrections, Revision: committedRevision},
 		},
 		resources: mergePreparationResources(resourcesFromManifest(manifest, input), resourcesFromCollected(collected.Resources)),
 	}
@@ -449,6 +476,23 @@ func (m *Module) PrepareResolved(ctx context.Context, resolved api.ResolvedPrepa
 	capturesPublished = true
 	commitFinish(nil)
 	return cloneResult(owned.result)
+}
+
+// equivalentPreparedFacts excludes only generation and collection bookkeeping.
+// Identity provenance, overrides, dependencies, conflicts and resolution intent
+// remain authoritative, as do provider availability and all source samples.
+func equivalentPreparedFacts(previous, candidate api.PreparedRelease) bool {
+	normalize := func(release api.PreparedRelease) api.PreparedRelease {
+		release.Generation = 0
+		release.Compatibility.FactInstructionFingerprint = ""
+		release.PreparedAt = time.Time{}
+		release.Identity.Generation = 0
+		release.Identity.ResolvedAt = time.Time{}
+		release.ProviderMetadata.Generation = 0
+		release.ProviderMetadata.UpdatedAt = time.Time{}
+		return release
+	}
+	return reflect.DeepEqual(normalize(previous), normalize(candidate))
 }
 
 // skipReusedPreparationStages emits terminal skipped updates for work supplied
@@ -931,8 +975,10 @@ func cloneInt(value *int) *int {
 }
 
 type envelope struct {
-	result    api.PrepareResult
-	resources preparationResources
+	// completeFacts distinguishes freshly resolved authority from lossy persisted hydration.
+	completeFacts bool
+	result        api.PrepareResult
+	resources     preparationResources
 }
 
 type preparationResources struct {
@@ -1028,7 +1074,8 @@ func cloneEnvelope(value envelope) (envelope, error) {
 		return envelope{}, fmt.Errorf("prepared release: clone envelope: %w", err)
 	}
 	cloned := envelope{
-		result: clonedResult,
+		completeFacts: value.completeFacts,
+		result:        clonedResult,
 		resources: preparationResources{
 			policy:              value.resources.policy,
 			sourcePath:          value.resources.sourcePath,

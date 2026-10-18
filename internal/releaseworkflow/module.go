@@ -3783,8 +3783,20 @@ func (m *Module) apply(
 	now time.Time,
 	command mutation,
 ) (CommandResult, error) {
-	switch command.(type) {
+	switch typed := command.(type) {
 	case ProjectTrackersCommand, PreflightTrackersCommand, CheckDuplicatesCommand, ResolveActionCommand:
+	case ReplaceFactInstructionsCommand:
+		stageMetadataDuplicateReuse(state, now)
+	case PrepareReleaseCommand:
+		if ordinaryMetadataRefresh(typed.Input) {
+			stageMetadataDuplicateReuse(state, now)
+		} else {
+			state.PendingDuplicateReuse = nil
+		}
+	case EvaluateInputReadinessCommand:
+		if state.PendingDuplicateReuse != nil && !state.PendingDuplicateReuse.MetadataRefresh {
+			state.PendingDuplicateReuse = nil
+		}
 	default:
 		state.PendingDuplicateReuse = nil
 	}
@@ -4145,6 +4157,7 @@ func (m *Module) prepareRelease(
 		}
 		return CommandResult{}, fmt.Errorf("release workflow prepare canonical release: %w", err)
 	}
+	certifyMetadataDuplicateReuse(state, prepared)
 	command.Input = resolved.Input
 	command.Input.Instructions = prepared.EffectiveInstructions
 	corrections, cloneErr := prepared.Corrections.Clone()
