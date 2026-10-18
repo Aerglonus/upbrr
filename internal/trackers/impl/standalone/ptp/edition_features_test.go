@@ -342,3 +342,25 @@ func TestPTPDisplayPreservesUnselectedWordingAndSuppression(t *testing.T) {
 		})
 	}
 }
+
+func TestExplicitFeaturesDoNotInferFromOpaqueEdition(t *testing.T) {
+	subject := api.UploadSubject{Edition: "Custom / 4K Restoration", ReleaseNameOverrides: api.ReleaseNameOverrides{ReleaseFeatures: new([]api.ReleaseFeature{})}}
+	for _, option := range editionFeatures(subject) {
+		if option.Label == "4K Restoration" && option.Selected {
+			t.Fatal("None restored a feature from opaque Edition")
+		}
+	}
+	if got := resolveRemasterTitle(subject); got != subject.Edition {
+		t.Fatalf("opaque wording changed: %q", got)
+	}
+	subject.ReleaseFeatures = []api.ReleaseFeature{api.ReleaseFeature4KRestoration}
+	subject.ReleaseNameOverrides.ReleaseFeatures = new([]api.ReleaseFeature{api.ReleaseFeature4KRestoration})
+	if got := resolveRemasterTitle(subject); got != "4K Restoration / Custom" {
+		t.Fatalf("selected feature duplicated in residual wording: %q", got)
+	}
+	if !slices.ContainsFunc(editionFeatures(subject), func(option api.TrackerEditionFeature) bool {
+		return option.Label == "4K Restoration" && option.Selected
+	}) {
+		t.Fatal("explicit feature lost")
+	}
+}
