@@ -83,17 +83,8 @@ func audioDefects(subject api.TrackerValidationSubject) []audioDefect {
 }
 
 func sourceLanguageFailures(subject api.TrackerValidationSubject) []api.RuleFailure {
-	var failures []api.RuleFailure
-	for _, track := range subject.LanguageFacts.Tracks {
-		if track.Kind != api.MediaTrackAudio || track.Role != api.AudioRoleAlternateMix {
-			continue
-		}
-		failure := trackers.LanguageRuleFailure(subject, "alternate_mix",
-			"alternate mix "+track.ID+" should be an additional original mix or unique remix; source uniqueness has not been verified",
-			trackers.LanguageAdvisory)
-		failure.EvidenceStatus = api.MetadataEvidenceStatusPartial
-		failures = append(failures, failure)
-	}
+	failures := alternateMixFailures(subject)
+	failures = append(failures, remuxSubtitleFailures(subject)...)
 	if needsSubtitlePresentation(subject) {
 		reason := "English subtitle presentation and coverage have not been verified for every programme resource; external subtitles remain subject to an embedded-subtitle improvement"
 		if hardcodedEnglishSubtitles(subject) {
@@ -174,7 +165,6 @@ func compatibilityMix(subject api.TrackerValidationSubject, track api.MediaTrack
 }
 
 // Compatibility checks preserve measured codec and per-mix requirements.
-// Source provenance and relative quality remain unverified advisory guidance.
 func compatibilityFailures(subject api.TrackerValidationSubject) []api.RuleFailure {
 	failures, _ := compatibilityAssessment(subject)
 	return failures
@@ -246,7 +236,7 @@ func compatibilityAssessment(subject api.TrackerValidationSubject) ([]api.RuleFa
 		failure := trackers.LanguageRuleFailure(
 			subject,
 			"compatibility_source",
-			"compatibility track "+track.ID+" should be the matching DD core or a WEB DD/DD+/DD+ Atmos substitute; a demonstrably inferior WEB substitute is trumpable. Source provenance and relative quality have not been verified",
+			"compatibility track "+track.ID+" retains comparative-quality review: a demonstrably superior matching disc-derived companion can justify replacement; relative quality has not been verified",
 			trackers.LanguageAdvisory,
 		)
 		failure.EvidenceStatus = api.MetadataEvidenceStatusPartial

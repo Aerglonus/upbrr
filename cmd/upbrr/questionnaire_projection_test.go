@@ -154,19 +154,54 @@ func TestCLICollectsNativeCompatibilityCorrections(t *testing.T) {
 	base := nativeCompatibilityProjectionSubject(t)
 	for _, tracker := range []string{"AITHER", "HHD", "LST", "ULCX"} {
 		t.Run(tracker, func(t *testing.T) {
-			subject := base
+			trackerBase := base
+			if tracker == "LST" {
+				trackerBase.Container = "mkv"
+				trackerBase.LanguageFacts = base.LanguageFacts.Clone()
+				for i := range trackerBase.LanguageFacts.Tracks {
+					track := &trackerBase.LanguageFacts.Tracks[i]
+					track.ResourceID = "main-resource"
+					track.Title = track.ID + " audio"
+				}
+				trackerBase.MediaFileFacts = api.MediaFileFacts{
+					Status:            api.MetadataEvidenceStatusComplete,
+					TechnicalStatus:   api.MetadataEvidenceStatusComplete,
+					LanguageStatus:    api.MetadataEvidenceStatusComplete,
+					ExpectedFileCount: 1,
+					Files: []api.MediaFileFact{{
+						ResourceID:      "main-resource",
+						Primary:         true,
+						Container:       "mkv",
+						Resolution:      "1080p",
+						VideoCodec:      "H.264",
+						VideoTrackCount: 1,
+						AudioLanguages:  []string{"English"},
+						AudioStatus:     api.MetadataEvidenceStatusComplete,
+						SubtitleStatus:  api.MetadataEvidenceStatusComplete,
+					}},
+				}
+			}
+			subject := trackerBase
 			validationSubject := api.NewTrackerValidationSubject(subject, tracker)
 			firstKey := trackers.LanguageQuestionKey(validationSubject, "compatibility_mix_companion-0")
 			secondKey := trackers.LanguageQuestionKey(validationSubject, "compatibility_mix_companion-1")
 			subject.TrackerQuestionnaireAnswers = map[string]map[string]string{tracker: {firstKey: "main", secondKey: "main"}}
 			projection, failure := registry.ProjectRelease(t.Context(), trackers.PreparationInput{Tracker: tracker, Meta: subject}, "input", "catalog", "config")
-			if failure != nil || projection.Readiness != api.ReadinessStatusBlocked || len(projection.Questionnaire) != 2 || len(projection.RequiredActions) != 1 {
+			if failure != nil || projection.Readiness != api.ReadinessStatusBlocked || len(projection.RequiredActions) != 1 {
 				t.Fatalf("conflicting current answers lost correction controls: %+v, %v", projection, failure)
 			}
+			assignments := 0
 			for _, field := range projection.Questionnaire {
+				if field.Key != firstKey && field.Key != secondKey {
+					continue
+				}
+				assignments++
 				if field.Value != "main" || !field.NeedsReview {
 					t.Fatalf("conflicting populated answer cannot be collected: %+v", field)
 				}
+			}
+			if assignments != 2 || tracker != "LST" && len(projection.Questionnaire) != 2 {
+				t.Fatalf("unexpected compatibility fields: %+v", projection.Questionnaire)
 			}
 			session := &cliWorkflowSession{
 				streams:       cliIO{out: io.Discard},
@@ -194,14 +229,18 @@ func TestCLICollectsNativeCompatibilityCorrections(t *testing.T) {
 				t.Fatalf("corrected native associations did not recover: %+v, %v", reviewed, failure)
 			}
 			for _, field := range reviewed.Questionnaire {
+				if tracker == "LST" && (strings.HasPrefix(field.Key, "compatibility_origin_") ||
+					strings.HasPrefix(field.Key, "retail_subtitle_") || strings.HasPrefix(field.Key, "stream_processing_")) {
+					t.Fatalf("retired LST review question returned: %+v", field)
+				}
 				if field.NeedsReview {
 					t.Fatalf("accepted association still needs correction: %+v", field)
 				}
 			}
 			for _, boundary := range []string{"debug", "missing companion", "missing companion unanswered", "missing companion unresolved", "unknown companion identity"} {
 				t.Run(boundary, func(t *testing.T) {
-					input := trackers.PreparationInput{Tracker: tracker, Meta: base}
-					input.Meta.LanguageFacts.Tracks = slices.Clone(base.LanguageFacts.Tracks)
+					input := trackers.PreparationInput{Tracker: tracker, Meta: trackerBase}
+					input.Meta.LanguageFacts.Tracks = slices.Clone(trackerBase.LanguageFacts.Tracks)
 					switch boundary {
 					case "debug":
 						input.ExecutionMode = api.WorkflowExecutionModeDebug
@@ -230,8 +269,15 @@ func TestCLICollectsNativeCompatibilityCorrections(t *testing.T) {
 						if !result.UploadReady || len(result.RequiredActions) != 0 || slices.ContainsFunc(result.Questionnaire, func(f api.TrackerQuestionnaireRequirement) bool { return f.NeedsReview }) {
 							t.Fatalf("conflict correction overrode debug bypass: %+v", result)
 						}
-					} else if result.Readiness != api.ReadinessStatusIneligible || len(result.Questionnaire) != 0 || len(result.RequiredActions) != 0 {
-						t.Fatalf("physical/evidence failure became answer-correctable: %+v", result)
+					} else {
+						if result.Readiness != api.ReadinessStatusIneligible || len(result.Questionnaire) != 0 || len(result.RequiredActions) != 0 {
+							t.Fatalf("physical/evidence failure became answer-correctable: %+v", result)
+						}
+						if !slices.ContainsFunc(result.PolicyDecisions, func(decision api.TrackerPolicyDecision) bool {
+							return strings.HasPrefix(decision.Code, "language_compatibility_") && decision.Blocking && decision.Decision == "ineligible"
+						}) {
+							t.Fatalf("unrelated evidence masked the compatibility boundary: %+v", result.PolicyDecisions)
+						}
 					}
 				})
 			}

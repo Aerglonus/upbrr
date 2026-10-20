@@ -53,7 +53,7 @@ func ordinaryCompatibilitySubject() api.TrackerValidationSubject {
 }
 
 func ordinaryCompatibilityQuestionnaire(subject api.TrackerValidationSubject) *api.TrackerQuestionnaire {
-	return languageQuestionnaire(trackers.PreparationInput{Meta: api.UploadSubject{
+	return compatibilityQuestionnaire(trackers.PreparationInput{Meta: api.UploadSubject{
 		Type:                        subject.Type,
 		Source:                      subject.Source,
 		DiscType:                    subject.DiscType,
@@ -167,6 +167,9 @@ func TestLSTAutomaticCompatibilityPreservesManualAnswers(t *testing.T) {
 			if question == nil || len(question.Fields) != 1 || question.Fields[0].Key != key {
 				t.Fatalf("manual association is not editable: %+v", question)
 			}
+			if answer == "main" && question.Fields[0].Required {
+				t.Fatalf("resolved association still requires an answer: %+v", question.Fields[0])
+			}
 			if slices.Contains(question.Fields[0].Options, answer) && question.Fields[0].Value != answer {
 				t.Fatalf("manual choice not shown: %+v", question.Fields[0])
 			}
@@ -259,7 +262,7 @@ func TestLSTRejectedCompanionRetainsRedundantProgrammeGuidance(t *testing.T) {
 func TestLSTClearMeasuredReleaseNeedsNoCompatibilityReview(t *testing.T) {
 	subject := ordinaryCompatibilitySubject()
 	subject.LanguageFacts.Tracks[1].Codec = "DD+ Atmos"
-	for _, failure := range languageAssessment(subject) {
+	for _, failure := range compatibilityFailures(subject) {
 		if failure.Disposition != api.RuleDispositionAdvisory {
 			t.Fatalf("clear measured release blocked: %+v", failure)
 		}
@@ -359,4 +362,23 @@ func TestLSTCompatibilityQuestionnaireEligibility(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Restrict assignment assertions to the compatibility relationship fields.
+func compatibilityQuestionnaire(input trackers.PreparationInput) *api.TrackerQuestionnaire {
+	q := languageQuestionnaire(input)
+	if q == nil {
+		return nil
+	}
+	fields := q.Fields[:0]
+	for _, field := range q.Fields {
+		if strings.HasPrefix(field.Key, "compatibility_mix_") {
+			fields = append(fields, field)
+		}
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	q.Fields = fields
+	return q
 }
