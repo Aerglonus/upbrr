@@ -881,8 +881,12 @@ func (s DupeAssessment) Validate() error {
 				return fmt.Errorf("pending dupe result %s requires blocked status and an action", id)
 			}
 		case DupeDecisionAccepted, DupeDecisionIgnored:
-			if len(result.Matches) == 0 || result.Status != StageStatusCompleted {
-				return fmt.Errorf("reviewed dupe result %s requires matches and completed status", id)
+			// Complete-search policy review does not require a duplicate candidate.
+			hasPolicyReason := slices.ContainsFunc(result.ReviewReasons, func(reason DupeReason) bool {
+				return strings.TrimSpace(reason.Code) != ""
+			})
+			if (len(result.Matches) == 0 && (!hasPolicyReason || !result.Search.Complete)) || result.Status != StageStatusCompleted {
+				return fmt.Errorf("reviewed dupe result %s requires matches or complete-search policy review reasons and completed status", id)
 			}
 		case DupeDecisionNoMatch:
 			if result.Status != StageStatusCompleted && result.Status != StageStatusSkipped {
